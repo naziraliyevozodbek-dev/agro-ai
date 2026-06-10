@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+@theme {
+  --color-agro-green-50: #f0fdf4;
+  --color-agro-green-100: #dcfce7;
+  --color-agro-green-500: #22c55e;
+  --color-agro-green-600: #16a34a;
+  --color-agro-green-700: #15803d;
+  --color-agro-dark: #0f172a;
+  --color-agro-card: rgba(255, 255, 255, 0.9);
+  --color-agro-card-dark: rgba(30, 41, 59, 0.9);
+}
+
+@custom-variant dark (&:is(.dark *));
+
+@layer base {
+  :root {
+    --background: #f8fafc;
+    --foreground: #020617;
+    --card: #ffffff;
+    --card-foreground: #020617;
+    --border: #e2e8f0;
+    --primary: #16a34a;
+    --primary-foreground: #ffffff;
+    --radius: 1rem;
+  }
+
+  .dark {
+    --background: #0f172a;
+    --foreground: #f8fafc;
+    --card: #1e293b;
+    --card-foreground: #f8fafc;
+    --border: #334155;
+    --primary: #22c55e;
+    --primary-foreground: #0f172a;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-[color:var(--border)];
+  }
+  body {
+    @apply bg-[color:var(--background)] text-[color:var(--foreground)] antialiased transition-colors duration-300;
+  }
+}
+
+/* Glassmorphism utilities */
+.glass-panel {
+  @apply bg-white/70 dark:bg-slate-800/70 backdrop-blur-md border border-white/20 dark:border-slate-700/50 shadow-sm rounded-2xl;
+}
+
+.glass-card {
+  @apply bg-white dark:bg-slate-800 shadow-md border border-slate-100 dark:border-slate-700 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-lg;
+}
+
+/* Smooth micro-animations */
+.hover-lift {
+  @apply transition-transform duration-300 hover:-translate-y-1;
+}
+
+.active-press {
+  @apply transition-transform duration-150 active:scale-95;
+}
+
+/* Hide scrollbar for clean UI */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

@@ -1,83 +1,165 @@
 "use client"
 
 import Link from "next/link"
-import { Sprout, Syringe, ScanSearch, Calculator, BookOpen, Settings, Wind, Thermometer, Droplets, TrendingUp, Map, Plus } from "lucide-react"
+import { Sprout, Syringe, ScanSearch, Calculator, BookOpen, Settings, Wind, Thermometer, Droplets, TrendingUp, Map, Plus, CloudRain, Cloud, Sun, CloudSnow } from "lucide-react"
 import { useEffect, useState } from "react"
 
+// Open-Meteo weather code to label + icon
+function getWeatherInfo(code: number): { label: string; icon: string } {
+  if (code === 0) return { label: "Ochiq havo", icon: "☀️" }
+  if (code <= 3) return { label: "Qisman bulutli", icon: "⛅" }
+  if (code <= 48) return { label: "Tumanli", icon: "🌫️" }
+  if (code <= 67) return { label: "Yomg'irli", icon: "🌧️" }
+  if (code <= 77) return { label: "Qorli", icon: "❄️" }
+  if (code <= 82) return { label: "Yomg'irli", icon: "🌦️" }
+  return { label: "Momaqaldiroq", icon: "⛈️" }
+}
+
+interface WeatherData {
+  temp: number
+  wind: number
+  humidity: number
+  label: string
+  emoji: string
+}
+
 export default function Home() {
-  const [user, setUser] = useState<{ first_name: string; last_name?: string; username?: string } | null>(null)
+  const [user, setUser] = useState<{ first_name: string; last_name?: string; id?: number } | null>(null)
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [time, setTime] = useState("")
   const [greeting, setGreeting] = useState("Xayrli kun")
+  const [weather, setWeather] = useState<WeatherData | null>(null)
+  const [loadingWeather, setLoadingWeather] = useState(true)
 
   useEffect(() => {
+    // Get Telegram user
     if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp?.initDataUnsafe?.user) {
-      setUser((window as any).Telegram.WebApp.initDataUnsafe.user)
+      const tgUser = (window as any).Telegram.WebApp.initDataUnsafe.user
+      setUser(tgUser)
+
+      // Fetch profile photo
+      if (tgUser.id) {
+        fetch(`/api/user-photo?user_id=${tgUser.id}`)
+          .then(r => r.json())
+          .then(d => { if (d.photo_url) setPhotoUrl(d.photo_url) })
+          .catch(() => {})
+      }
     }
+
+    // Set time and greeting
     const now = new Date()
     const h = now.getHours()
-    setGreeting(h < 12 ? "Xayrli tong" : h < 18 ? "Xayrli kun" : "Xayrli kech")
-    setTime(now.toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }) + " | " +
-      now.toLocaleDateString("uz-UZ", { day: "2-digit", month: "short" }))
+    setGreeting(h < 6 ? "Xayrli tun" : h < 12 ? "Xayrli tong" : h < 18 ? "Xayrli kun" : "Xayrli kech")
+    const updateTime = () => {
+      const n = new Date()
+      setTime(n.toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }) + " | " +
+        n.toLocaleDateString("uz-UZ", { day: "2-digit", month: "short" }))
+    }
+    updateTime()
+    const timer = setInterval(updateTime, 60000)
+
+    // Get real weather via geolocation + Open-Meteo (free, no API key)
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async ({ coords }) => {
+          try {
+            const res = await fetch(
+              `https://api.open-meteo.com/v1/forecast?latitude=${coords.latitude}&longitude=${coords.longitude}&current=temperature_2m,wind_speed_10m,relative_humidity_2m,weather_code&wind_speed_unit=kmh`
+            )
+            const data = await res.json()
+            const c = data.current
+            const info = getWeatherInfo(c.weather_code)
+            setWeather({
+              temp: Math.round(c.temperature_2m),
+              wind: Math.round(c.wind_speed_10m),
+              humidity: Math.round(c.relative_humidity_2m),
+              label: info.label,
+              emoji: info.icon,
+            })
+          } catch { /* silent fail */ }
+          finally { setLoadingWeather(false) }
+        },
+        () => setLoadingWeather(false), // denied
+        { timeout: 8000 }
+      )
+    } else {
+      setLoadingWeather(false)
+    }
+
+    return () => clearInterval(timer)
   }, [])
 
-  const firstName = user?.first_name || "Fermer"
+  const firstName = user ? `${user.first_name}${user.last_name ? ' ' + user.last_name : ''}` : "Fermer"
+  const initial = firstName.charAt(0).toUpperCase()
 
   const quickActions = [
-    { name: "AI Agronom", icon: Sprout, href: "/chat?type=agronom", bg: "bg-emerald-500", light: "bg-emerald-50 text-emerald-600" },
-    { name: "AI Veterinar", icon: Syringe, href: "/chat?type=vet", bg: "bg-blue-500", light: "bg-blue-50 text-blue-600" },
-    { name: "Kasallik", icon: ScanSearch, href: "/detect", bg: "bg-violet-500", light: "bg-violet-50 text-violet-600" },
-    { name: "Kalkulyator", icon: Calculator, href: "/calculators", bg: "bg-teal-500", light: "bg-teal-50 text-teal-600" },
-    { name: "Bilimlar", icon: BookOpen, href: "/knowledge", bg: "bg-amber-500", light: "bg-amber-50 text-amber-600" },
-    { name: "Barchasi", icon: Plus, href: "/history", bg: "bg-slate-400", light: "bg-slate-50 text-slate-600" },
+    { name: "AI Agronom", icon: Sprout, href: "/chat?type=agronom", bg: "bg-emerald-500" },
+    { name: "AI Veterinar", icon: Syringe, href: "/chat?type=vet", bg: "bg-blue-500" },
+    { name: "Kasallik", icon: ScanSearch, href: "/detect", bg: "bg-violet-500" },
+    { name: "Kalkulyator", icon: Calculator, href: "/calculators", bg: "bg-teal-500" },
+    { name: "Bilimlar", icon: BookOpen, href: "/knowledge", bg: "bg-amber-500" },
+    { name: "Tarix", icon: Map, href: "/history", bg: "bg-slate-400" },
   ]
 
   return (
     <main className="pb-24 min-h-screen bg-[#f5f7f5]">
-
-      {/* ── Hero: Green header with background image feel ── */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#2d6a4f] via-[#40916c] to-[#52b788] min-h-[260px] px-5 pt-10 pb-16">
-        {/* Decorative blobs */}
+      {/* ── Hero ── */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#1b4332] via-[#2d6a4f] to-[#52b788] min-h-[270px] px-5 pt-10 pb-16">
         <div className="absolute inset-0 opacity-20">
-          <div className="absolute top-0 right-0 w-48 h-48 rounded-full bg-white blur-3xl"></div>
-          <div className="absolute bottom-0 left-10 w-32 h-32 rounded-full bg-emerald-300 blur-2xl"></div>
+          <div className="absolute top-0 right-0 w-48 h-48 rounded-full bg-white blur-3xl" />
+          <div className="absolute bottom-0 left-10 w-32 h-32 rounded-full bg-emerald-300 blur-2xl" />
         </div>
 
         {/* Top row */}
-        <div className="relative flex items-center justify-between mb-6">
-          <button className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
+        <div className="relative flex items-center justify-between mb-5">
+          <Link href="/profile" className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
             <Settings className="w-5 h-5 text-white" />
-          </button>
-          <span className="text-white/80 text-xs font-medium">{time}</span>
-          <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center font-bold text-white text-base">
-            {firstName.charAt(0)}
-          </div>
+          </Link>
+          <span className="text-white/70 text-xs font-medium">{time}</span>
+          {/* Avatar */}
+          <Link href="/profile">
+            {photoUrl ? (
+              <img src={photoUrl} alt="avatar" className="w-9 h-9 rounded-full object-cover border-2 border-white/40" />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-white/20 border-2 border-white/30 flex items-center justify-center font-bold text-white text-sm">
+                {initial}
+              </div>
+            )}
+          </Link>
         </div>
 
-        {/* Greeting & weather */}
+        {/* Greeting + weather */}
         <div className="relative">
           <p className="text-white/80 text-sm mb-0.5">{greeting}, {firstName} 👋</p>
           <div className="flex items-end justify-between">
             <div>
-              <div className="text-white text-6xl font-bold tracking-tight leading-none">26°C</div>
+              {loadingWeather ? (
+                <div className="text-white/60 text-4xl font-bold animate-pulse">--°C</div>
+              ) : weather ? (
+                <div className="text-white text-6xl font-bold tracking-tight leading-none">{weather.temp}°C</div>
+              ) : (
+                <div className="text-white text-4xl font-bold">--°C</div>
+              )}
               <div className="text-white/70 text-sm mt-1 flex items-center gap-1">
-                ☀️ <span>Ochiq havo · Samarqand</span>
+                {weather ? <><span>{weather.emoji}</span><span>{weather.label}</span></> : <span>Joylashuv aniqlanmoqda...</span>}
               </div>
             </div>
-            <div className="text-right text-white/90 text-sm font-semibold">Ochiq havo</div>
           </div>
 
           {/* Weather pills */}
           <div className="flex gap-2 mt-4">
-            {[
-              { icon: Wind, label: "5 km/s" },
-              { icon: Thermometer, label: "+12°C" },
-              { icon: Droplets, label: "42.5%" },
-            ].map(({ icon: Icon, label }) => (
-              <div key={label} className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full text-white text-xs font-medium">
-                <Icon className="w-3.5 h-3.5" />
-                {label}
-              </div>
-            ))}
+            <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full text-white text-xs font-medium">
+              <Wind className="w-3.5 h-3.5" />
+              {weather ? `${weather.wind} km/s` : "--"}
+            </div>
+            <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full text-white text-xs font-medium">
+              <Thermometer className="w-3.5 h-3.5" />
+              {weather ? `${weather.temp > 0 ? '+' : ''}${weather.temp}°C` : "--"}
+            </div>
+            <div className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full text-white text-xs font-medium">
+              <Droplets className="w-3.5 h-3.5" />
+              {weather ? `${weather.humidity}%` : "--"}
+            </div>
           </div>
         </div>
       </div>
@@ -85,28 +167,23 @@ export default function Home() {
       {/* ── Scrollable content ── */}
       <div className="px-4 -mt-6 space-y-4">
 
-        {/* Water Efficiency Card */}
+        {/* Water Efficiency */}
         <div className="bg-white rounded-3xl p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <span className="font-semibold text-slate-700 text-sm">Suv Samaradorligi</span>
             <span className="text-xs font-bold text-white bg-emerald-500 px-2.5 py-1 rounded-full">Yuqori · 75%</span>
           </div>
-          {/* Progress bar segmented */}
           <div className="flex gap-[3px] h-3 rounded-full overflow-hidden">
             {Array.from({ length: 28 }).map((_, i) => (
-              <div
-                key={i}
-                className={`flex-1 rounded-sm ${i < 21 ? "bg-[#2d6a4f]" : "bg-slate-100"}`}
-              />
+              <div key={i} className={`flex-1 rounded-sm ${i < 21 ? "bg-[#2d6a4f]" : "bg-slate-100"}`} />
             ))}
           </div>
         </div>
 
-        {/* Soil Health + Crop Score */}
+        {/* Soil + Crop */}
         <div className="grid grid-cols-2 gap-3">
-          {/* Soil Health */}
           <div className="bg-white rounded-3xl p-4 shadow-sm">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
               <span className="text-xs font-bold text-slate-500">Tuproq Sog'lig'i</span>
               <span className="text-[10px] font-bold bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full">Normal</span>
             </div>
@@ -115,19 +192,15 @@ export default function Home() {
             <div className="flex items-center gap-1 mt-3 text-emerald-600">
               <TrendingUp className="w-3.5 h-3.5" />
               <span className="text-xs font-bold">+42%</span>
-              <span className="text-xs text-slate-400 ml-1">O'tgan hafta</span>
+              <span className="text-[10px] text-slate-400 ml-1">O'tgan hafta</span>
             </div>
           </div>
 
-          {/* Crop Health Score – Gauge */}
           <div className="bg-white rounded-3xl p-4 shadow-sm flex flex-col items-center justify-center">
             <span className="text-xs font-bold text-slate-500 mb-2">Hosil Ko'rsatkichi</span>
-            {/* Simple SVG gauge */}
             <div className="relative w-20 h-11 overflow-hidden">
               <svg viewBox="0 0 100 55" className="w-full">
-                {/* Background arc */}
                 <path d="M10 50 A40 40 0 0 1 90 50" fill="none" stroke="#e5e7eb" strokeWidth="10" strokeLinecap="round" />
-                {/* Filled arc 85% */}
                 <path d="M10 50 A40 40 0 0 1 90 50" fill="none" stroke="#2d6a4f" strokeWidth="10" strokeLinecap="round"
                   strokeDasharray="125" strokeDashoffset="19" />
               </svg>
@@ -139,22 +212,22 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Map / Field Banner */}
-        <div className="bg-gradient-to-br from-[#52b788] to-[#2d6a4f] rounded-3xl p-4 shadow-sm flex items-center justify-between overflow-hidden relative min-h-[90px]">
+        {/* Map Banner */}
+        <div className="bg-gradient-to-br from-[#52b788] to-[#2d6a4f] rounded-3xl p-4 shadow-sm flex items-center justify-between relative min-h-[90px] overflow-hidden">
           <div className="absolute inset-0 opacity-10 text-[80px] flex items-center justify-center select-none">🌾</div>
           <div className="relative z-10">
             <p className="text-white/80 text-xs mb-1">Namlik: 72% · Holat: 85/100</p>
-            <button className="bg-white text-[#2d6a4f] text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1 shadow-sm hover:scale-105 transition-transform active:scale-95">
-              <Map className="w-3.5 h-3.5" /> Xaritani Ko'r
-            </button>
+            <Link href="/detect" className="bg-white text-[#2d6a4f] text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1 shadow-sm hover:scale-105 transition-transform active:scale-95 w-fit">
+              <ScanSearch className="w-3.5 h-3.5" /> Kasallik Aniqlash
+            </Link>
           </div>
-          <button className="relative z-10 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center border-2 border-white/30 hover:bg-white/30 transition-colors">
+          <div className="relative z-10 w-10 h-10 rounded-full bg-white/20 flex items-center justify-center border-2 border-white/30">
             <Plus className="w-5 h-5 text-white" />
-          </button>
+          </div>
         </div>
 
-        {/* Quick Actions Grid */}
-        <div>
+        {/* Quick Actions */}
+        <div className="pb-4">
           <h2 className="text-base font-bold text-slate-700 mb-3">Tezkor Amallar</h2>
           <div className="grid grid-cols-3 gap-3">
             {quickActions.map((action) => {
